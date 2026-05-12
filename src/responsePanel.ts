@@ -38,6 +38,7 @@ export class ResponsePanel {
 <html>
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
 <style>
   :root { --bg: var(--vscode-editor-background); --fg: var(--vscode-editor-foreground); --border: var(--vscode-panel-border); }
   body { font-family: var(--vscode-font-family); color: var(--fg); background: var(--bg); padding: 12px; margin: 0; }

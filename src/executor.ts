@@ -85,7 +85,7 @@ export async function executeRequest(
         durationMs: endTime - startTime,
       },
       size: { headerBytes: 0, bodyBytes: 0, totalBytes: 0 },
-      error: err.message || String(err),
+      error: err.errors?.[0]?.message || err.message || String(err),
     };
   }
 }
@@ -151,10 +151,14 @@ function doRequest(
       let totalSize = 0;
 
       res.on('data', (chunk: Buffer) => {
-        totalSize += chunk.length;
-        if (totalSize <= options.maxResponseSize) {
+        if (totalSize >= options.maxResponseSize) return;
+        const remaining = options.maxResponseSize - totalSize;
+        if (chunk.length <= remaining) {
           chunks.push(chunk);
+        } else {
+          chunks.push(chunk.subarray(0, remaining));
         }
+        totalSize += chunk.length;
       });
 
       res.on('end', () => {
