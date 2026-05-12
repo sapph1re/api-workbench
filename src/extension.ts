@@ -8,12 +8,14 @@ import { CollectionTreeProvider, EnvironmentTreeProvider } from './collectionTre
 import { HttpCodeLensProvider } from './codeLens';
 import { runCollection, CollectionResult } from './runner';
 import { generateMarkdownReport, generateJsonReport } from './report';
+import { generateAgentReport, AgentReport } from './agentReport';
 
 let envManager: EnvironmentManager;
 let responsePanel: ResponsePanel;
 let collectionTree: CollectionTreeProvider;
 let envTree: EnvironmentTreeProvider;
 let statusBarItem: vscode.StatusBarItem;
+let lastAgentReport: AgentReport | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   envManager = new EnvironmentManager();
@@ -43,6 +45,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('apiWorkbench.runCollection', runCollectionCommand),
     vscode.commands.registerCommand('apiWorkbench.selectEnvironment', () => envManager.selectEnvironment()),
     vscode.commands.registerCommand('apiWorkbench.refreshCollections', () => collectionTree.refresh()),
+    vscode.commands.registerCommand('apiWorkbench.exportForAgent', exportForAgentCommand),
     statusBarItem,
     envManager,
     collectionTree,
@@ -198,6 +201,13 @@ async function runCollectionCommand(): Promise<void> {
   const encoder = new TextEncoder();
   await vscode.workspace.fs.writeFile(jsonUri, encoder.encode(JSON.stringify(jsonReport, null, 2)));
 
+  lastAgentReport = generateAgentReport(result, doc.fileName);
+
+  const config = vscode.workspace.getConfiguration('apiWorkbench');
+  if (config.get<boolean>('agentOutput.autoExport', true)) {
+    await writeAgentReportToWorkspace(lastAgentReport, collectionName);
+  }
+
   const passedAll = result.failedRequests === 0;
   if (passedAll) {
     vscode.window.showInformationMessage(
@@ -266,6 +276,37 @@ function writeAgentOutput(channel: vscode.OutputChannel, response: HttpResponse)
     channel.appendLine(`BODY: ${response.body.slice(0, 2000)}`);
   }
   channel.appendLine('---');
+}
+
+async function exportForAgentCommand(): Promise<void> {
+  if (!lastAgentReport) {
+    vscode.window.showWarningMessage('No test results to export. Run a collection first (Ctrl+Alt+T).');
+    return;
+  }
+
+  const name = lastAgentReport.collection;
+  const reportPath = await writeAgentReportToWorkspace(lastAgentReport, name);
+  if (reportPath) {
+    vscode.window.showInformationMessage(`Agent report written to ${reportPath}`);
+  }
+}
+
+async function writeAgentReportToWorkspace(report: AgentReport, name: string): Promise<string | null> {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  if (!workspaceFolder) return null;
+
+  const reportsDir = path.join(workspaceFolder.uri.fsPath, '.api-workbench', 'reports');
+  const dirUri = vscode.Uri.file(reportsDir);
+  try {
+    await vscode.workspace.fs.createDirectory(dirUri);
+  } catch {}
+
+  const reportPath = path.join(reportsDir, `${name}.agent.json`);
+  const reportUri = vscode.Uri.file(reportPath);
+  const encoder = new TextEncoder();
+  await vscode.workspace.fs.writeFile(reportUri, encoder.encode(JSON.stringify(report, null, 2)));
+
+  return path.relative(workspaceFolder.uri.fsPath, reportPath);
 }
 
 function truncate(s: string, n: number): string {
