@@ -5,6 +5,19 @@
   "version": "0.1.0",
   "publisher": "sapph1re",
   "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sapph1re/api-workbench"
+  },
+  "bugs": {
+    "url": "https://github.com/sapph1re/api-workbench/issues"
+  },
+  "homepage": "https://github.com/sapph1re/api-workbench#readme",
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
