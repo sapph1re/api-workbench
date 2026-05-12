@@ -1,0 +1,160 @@
+{
+  "name": "api-workbench",
+  "displayName": "API Workbench",
+  "description": "Agent-ready API testing for VS Code, Cursor, and Windsurf. Execute HTTP requests from .http files with structured, agent-readable output.",
+  "version": "0.1.0",
+  "publisher": "sapph1re",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Testing",
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "api",
+    "rest",
+    "http",
+    "api-testing",
+    "rest-client",
+    "http-client",
+    "cursor",
+    "windsurf"
+  ],
+  "activationEvents": [
+    "onLanguage:http",
+    "onView:apiWorkbench.collections"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "http",
+        "aliases": ["HTTP", "http"],
+        "extensions": [".http", ".rest"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "http",
+        "scopeName": "source.http",
+        "path": "./syntaxes/http.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "apiWorkbench.sendRequest",
+        "title": "Send Request",
+        "icon": "$(play)",
+        "category": "API Workbench"
+      },
+      {
+        "command": "apiWorkbench.sendAllRequests",
+        "title": "Send All Requests",
+        "icon": "$(run-all)",
+        "category": "API Workbench"
+      },
+      {
+        "command": "apiWorkbench.selectEnvironment",
+        "title": "Select Environment",
+        "icon": "$(gear)",
+        "category": "API Workbench"
+      },
+      {
+        "command": "apiWorkbench.refreshCollections",
+        "title": "Refresh Collections",
+        "icon": "$(refresh)",
+        "category": "API Workbench"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "apiWorkbench.sendRequest",
+          "when": "resourceLangId == http",
+          "group": "navigation"
+        },
+        {
+          "command": "apiWorkbench.selectEnvironment",
+          "when": "resourceLangId == http",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "apiWorkbench.sendRequest",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "resourceLangId == http"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "apiWorkbench",
+          "title": "API Workbench",
+          "icon": "$(cloud)"
+        }
+      ]
+    },
+    "views": {
+      "apiWorkbench": [
+        {
+          "id": "apiWorkbench.collections",
+          "name": "Collections"
+        },
+        {
+          "id": "apiWorkbench.environments",
+          "name": "Environments"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "API Workbench",
+      "properties": {
+        "apiWorkbench.timeout": {
+          "type": "number",
+          "default": 30000,
+          "description": "Request timeout in milliseconds"
+        },
+        "apiWorkbench.followRedirects": {
+          "type": "boolean",
+          "default": true,
+          "description": "Follow HTTP redirects"
+        },
+        "apiWorkbench.maxResponseSize": {
+          "type": "number",
+          "default": 10485760,
+          "description": "Maximum response body size in bytes (default 10MB)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "test:unit": "npx mocha --require ts-node/register 'src/test/unit/**/*.test.ts'",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.8",
+    "@vscode/vsce": "^2.22.0",
+    "eslint": "^8.56.0",
+    "mocha": "^10.2.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  }
+}

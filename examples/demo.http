@@ -1,0 +1,32 @@
+@host = https://httpbin.org
+
+### Health Check
+GET {{host}}/get
+
+### POST JSON
+POST {{host}}/post
+Content-Type: application/json
+
+{
+  "name": "API Workbench",
+  "version": "0.1.0"
+}
+
+### Custom Headers
+GET {{host}}/headers
+Accept: application/json
+X-Custom-Header: test-value
+
+### PUT Request
+PUT {{host}}/put
+Content-Type: application/json
+
+{
+  "updated": true
+}
+
+### DELETE Request
+DELETE {{host}}/delete
+
+### Query Parameters
+GET {{host}}/get?search=test&page=1&limit=10
