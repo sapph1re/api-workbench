@@ -77,6 +77,12 @@
         "category": "API Workbench"
       },
       {
+        "command": "apiWorkbench.runCollection",
+        "title": "Run Collection",
+        "icon": "$(beaker)",
+        "category": "API Workbench"
+      },
+      {
         "command": "apiWorkbench.refreshCollections",
         "title": "Refresh Collections",
         "icon": "$(refresh)",
@@ -87,6 +93,11 @@
       "editor/title": [
         {
           "command": "apiWorkbench.sendRequest",
+          "when": "resourceLangId == http",
+          "group": "navigation"
+        },
+        {
+          "command": "apiWorkbench.runCollection",
           "when": "resourceLangId == http",
           "group": "navigation"
         },
@@ -102,6 +113,12 @@
         "command": "apiWorkbench.sendRequest",
         "key": "ctrl+alt+r",
         "mac": "cmd+alt+r",
+        "when": "resourceLangId == http"
+      },
+      {
+        "command": "apiWorkbench.runCollection",
+        "key": "ctrl+alt+t",
+        "mac": "cmd+alt+t",
         "when": "resourceLangId == http"
       }
     ],

@@ -12,6 +12,7 @@ function makeRequest(overrides: Partial<ParsedRequest> = {}): ParsedRequest {
     body: '',
     line: 0,
     variables: {},
+    assertionLines: [],
     ...overrides,
   };
 }

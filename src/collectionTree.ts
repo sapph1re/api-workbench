@@ -8,33 +8,49 @@ type TreeItem = CollectionItem | RequestItem;
 class CollectionItem extends vscode.TreeItem {
   constructor(
     public readonly filePath: string,
-    public readonly requests: ParsedRequest[]
+    public readonly requests: ParsedRequest[],
+    private resultMap?: Map<number, boolean>
   ) {
     super(
       path.basename(filePath),
       requests.length > 0 ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None
     );
     this.tooltip = filePath;
-    this.description = `${requests.length} request${requests.length !== 1 ? 's' : ''}`;
-    this.iconPath = new vscode.ThemeIcon('file');
     this.contextValue = 'collection';
     this.command = {
       command: 'vscode.open',
       title: 'Open Collection',
       arguments: [vscode.Uri.file(filePath)],
     };
+
+    if (resultMap && resultMap.size > 0) {
+      const total = requests.length;
+      const tested = [...resultMap.values()];
+      const passed = tested.filter(v => v).length;
+      const failed = tested.filter(v => !v).length;
+      this.description = failed > 0
+        ? `${passed}/${total} passed, ${failed} failed`
+        : `${passed}/${total} passed`;
+      this.iconPath = new vscode.ThemeIcon(
+        failed > 0 ? 'error' : 'pass',
+        new vscode.ThemeColor(failed > 0 ? 'testing.iconFailed' : 'testing.iconPassed')
+      );
+    } else {
+      this.description = `${requests.length} request${requests.length !== 1 ? 's' : ''}`;
+      this.iconPath = new vscode.ThemeIcon('file');
+    }
   }
 }
 
 class RequestItem extends vscode.TreeItem {
   constructor(
     public readonly request: ParsedRequest,
-    public readonly filePath: string
+    public readonly filePath: string,
+    private result?: boolean
   ) {
     super(request.name, vscode.TreeItemCollapsibleState.None);
     this.description = request.method;
     this.tooltip = `${request.method} ${request.url}`;
-    this.iconPath = new vscode.ThemeIcon(getMethodIcon(request.method));
     this.contextValue = 'request';
     this.command = {
       command: 'vscode.open',
@@ -44,6 +60,14 @@ class RequestItem extends vscode.TreeItem {
         { selection: new vscode.Range(request.line, 0, request.line, 0) },
       ],
     };
+
+    if (result === true) {
+      this.iconPath = new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'));
+    } else if (result === false) {
+      this.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));
+    } else {
+      this.iconPath = new vscode.ThemeIcon(getMethodIcon(request.method));
+    }
   }
 }
 
@@ -62,6 +86,7 @@ export class CollectionTreeProvider implements vscode.TreeDataProvider<TreeItem>
   private _onDidChangeTreeData = new vscode.EventEmitter<TreeItem | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
   private watchers: vscode.FileSystemWatcher[] = [];
+  private runResults = new Map<string, Map<number, boolean>>();
 
   constructor() {
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.{http,rest}');
@@ -80,13 +105,28 @@ export class CollectionTreeProvider implements vscode.TreeDataProvider<TreeItem>
     this._onDidChangeTreeData.fire(undefined);
   }
 
+  setResults(filePath: string, results: Map<number, boolean>): void {
+    this.runResults.set(filePath, results);
+    this.refresh();
+  }
+
+  clearResults(filePath?: string): void {
+    if (filePath) {
+      this.runResults.delete(filePath);
+    } else {
+      this.runResults.clear();
+    }
+    this.refresh();
+  }
+
   getTreeItem(element: TreeItem): vscode.TreeItem {
     return element;
   }
 
   async getChildren(element?: TreeItem): Promise<TreeItem[]> {
     if (element instanceof CollectionItem) {
-      return element.requests.map(r => new RequestItem(r, element.filePath));
+      const resultMap = this.runResults.get(element.filePath);
+      return element.requests.map(r => new RequestItem(r, element.filePath, resultMap?.get(r.line)));
     }
 
     const httpFiles = await vscode.workspace.findFiles('**/*.{http,rest}', '**/node_modules/**');
@@ -96,7 +136,8 @@ export class CollectionTreeProvider implements vscode.TreeDataProvider<TreeItem>
       try {
         const content = fs.readFileSync(file.fsPath, 'utf-8');
         const requests = parseHttpFile(content);
-        items.push(new CollectionItem(file.fsPath, requests));
+        const resultMap = this.runResults.get(file.fsPath);
+        items.push(new CollectionItem(file.fsPath, requests, resultMap));
       } catch {
         items.push(new CollectionItem(file.fsPath, []));
       }

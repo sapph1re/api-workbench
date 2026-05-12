@@ -1,10 +1,13 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { parseHttpFile, getRequestAtCursor, resolveVariables } from './parser';
 import { executeRequest, HttpResponse, ExecutorOptions } from './executor';
 import { EnvironmentManager } from './environment';
 import { ResponsePanel } from './responsePanel';
 import { CollectionTreeProvider, EnvironmentTreeProvider } from './collectionTree';
 import { HttpCodeLensProvider } from './codeLens';
+import { runCollection, CollectionResult } from './runner';
+import { generateMarkdownReport, generateJsonReport } from './report';
 
 let envManager: EnvironmentManager;
 let responsePanel: ResponsePanel;
@@ -37,6 +40,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerCodeLensProvider({ language: 'http' }, new HttpCodeLensProvider()),
     vscode.commands.registerCommand('apiWorkbench.sendRequest', sendRequestCommand),
     vscode.commands.registerCommand('apiWorkbench.sendAllRequests', sendAllRequestsCommand),
+    vscode.commands.registerCommand('apiWorkbench.runCollection', runCollectionCommand),
     vscode.commands.registerCommand('apiWorkbench.selectEnvironment', () => envManager.selectEnvironment()),
     vscode.commands.registerCommand('apiWorkbench.refreshCollections', () => collectionTree.refresh()),
     statusBarItem,
@@ -128,6 +132,108 @@ async function sendAllRequestsCommand(): Promise<void> {
   if (lastResponse) {
     responsePanel.show(lastResponse);
   }
+}
+
+async function runCollectionCommand(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showErrorMessage('No active .http file');
+    return;
+  }
+
+  const doc = editor.document;
+  const requests = parseHttpFile(doc.getText());
+  if (requests.length === 0) {
+    vscode.window.showInformationMessage('No HTTP requests found in file');
+    return;
+  }
+
+  const collectionName = path.basename(doc.fileName, path.extname(doc.fileName));
+  const envVars = envManager.getActiveVariables();
+  const opts = getExecutorOptions();
+  const outputChannel = getOutputChannel();
+  outputChannel.clear();
+
+  let result: CollectionResult | undefined;
+
+  await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: `Running collection: ${collectionName}`, cancellable: true },
+    async (progress, token) => {
+      result = await runCollection(
+        collectionName,
+        requests,
+        envVars,
+        opts,
+        (index, total, req) => {
+          progress.report({
+            message: `(${index + 1}/${total}) ${req.method} ${truncate(req.url, 30)}`,
+            increment: 100 / total,
+          });
+        },
+        () => token.isCancellationRequested,
+      );
+    }
+  );
+
+  if (!result) return;
+
+  const resultMap = new Map<number, boolean>();
+  for (const r of result.results) {
+    resultMap.set(r.request.line, r.passed);
+  }
+  collectionTree.setResults(doc.fileName, resultMap);
+
+  outputChannel.show(true);
+  writeCollectionSummary(outputChannel, result);
+
+  const mdReport = generateMarkdownReport(result);
+  const mdDoc = await vscode.workspace.openTextDocument({ content: mdReport, language: 'markdown' });
+  await vscode.window.showTextDocument(mdDoc, vscode.ViewColumn.Beside, true);
+
+  const jsonReport = generateJsonReport(result);
+  const jsonDir = path.dirname(doc.fileName);
+  const jsonFileName = `${collectionName}.report.json`;
+  const jsonPath = path.join(jsonDir, jsonFileName);
+  const jsonUri = vscode.Uri.file(jsonPath);
+  const encoder = new TextEncoder();
+  await vscode.workspace.fs.writeFile(jsonUri, encoder.encode(JSON.stringify(jsonReport, null, 2)));
+
+  const passedAll = result.failedRequests === 0;
+  if (passedAll) {
+    vscode.window.showInformationMessage(
+      `Collection passed: ${result.passedRequests}/${result.totalRequests} requests, ${result.passedAssertions}/${result.totalAssertions} assertions`
+    );
+  } else {
+    vscode.window.showWarningMessage(
+      `Collection failed: ${result.failedRequests} request(s) failed, ${result.failedAssertions} assertion(s) failed`
+    );
+  }
+}
+
+function writeCollectionSummary(channel: vscode.OutputChannel, result: CollectionResult): void {
+  channel.appendLine('=== COLLECTION RUN REPORT ===');
+  channel.appendLine(`Collection: ${result.name}`);
+  channel.appendLine(`Timestamp: ${result.timestamp}`);
+  channel.appendLine(`Duration: ${result.totalDurationMs}ms`);
+  channel.appendLine(`Requests: ${result.passedRequests}/${result.totalRequests} passed`);
+  channel.appendLine(`Assertions: ${result.passedAssertions}/${result.totalAssertions} passed`);
+  channel.appendLine(`Result: ${result.failedRequests === 0 ? 'PASS' : 'FAIL'}`);
+  channel.appendLine('');
+
+  for (const r of result.results) {
+    const icon = r.passed ? 'PASS' : 'FAIL';
+    channel.appendLine(`[${icon}] ${r.request.name} — ${r.response.request.method} ${r.response.request.url}`);
+    channel.appendLine(`  Status: ${r.response.status} | Duration: ${r.response.timing.durationMs}ms`);
+    if (r.response.error) {
+      channel.appendLine(`  Error: ${r.response.error}`);
+    }
+    for (const a of r.assertionResults) {
+      const aIcon = a.passed ? 'PASS' : 'FAIL';
+      channel.appendLine(`  [${aIcon}] ${a.message}`);
+    }
+    channel.appendLine('');
+  }
+  channel.appendLine('=== END REPORT ===');
 }
 
 let _outputChannel: vscode.OutputChannel | undefined;

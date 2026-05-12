@@ -8,6 +8,7 @@ export interface ParsedRequest {
   body: string;
   line: number;
   variables: Record<string, string>;
+  assertionLines: Array<{ text: string; line: number }>;
 }
 
 export function parseHttpFile(text: string): ParsedRequest[] {
@@ -86,9 +87,15 @@ function parseRequest(
   }
 
   const bodyLines: string[] = [];
+  const assertionLines: Array<{ text: string; line: number }> = [];
   while (i < lines.length) {
     const line = lines[i];
     if (line.trim().startsWith('###')) break;
+    if (/^#\s*@assert\s+/i.test(line.trim())) {
+      assertionLines.push({ text: line.trim(), line: i });
+      i++;
+      continue;
+    }
     const nextMethodMatch = line.trim().match(/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|TRACE|CONNECT)\s+/);
     if (nextMethodMatch && bodyLines.length > 0) break;
     bodyLines.push(line);
@@ -105,6 +112,7 @@ function parseRequest(
     body,
     line: startLine,
     variables: { ...fileVariables },
+    assertionLines,
     _endLine: i - 1,
   };
 }

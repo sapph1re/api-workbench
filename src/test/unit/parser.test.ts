@@ -137,6 +137,61 @@ Content-Type: application/json
     });
   });
 
+    it('should parse assertion lines after request', () => {
+      const text = `### Test
+GET https://example.com/api
+
+# @assert status == 200
+# @assert body contains "success"`;
+      const requests = parseHttpFile(text);
+      assert.strictEqual(requests.length, 1);
+      assert.strictEqual(requests[0].assertionLines.length, 2);
+      assert.ok(requests[0].assertionLines[0].text.includes('@assert status == 200'));
+      assert.ok(requests[0].assertionLines[1].text.includes('@assert body contains'));
+    });
+
+    it('should parse assertion lines after body', () => {
+      const text = `POST https://example.com/api
+Content-Type: application/json
+
+{"key":"value"}
+
+# @assert status == 201
+# @assert jsonpath $.key == "value"`;
+      const requests = parseHttpFile(text);
+      assert.strictEqual(requests.length, 1);
+      assert.strictEqual(requests[0].body, '{"key":"value"}');
+      assert.strictEqual(requests[0].assertionLines.length, 2);
+    });
+
+    it('should not include assertion lines in body', () => {
+      const text = `GET https://example.com/api
+# @assert status == 200`;
+      const requests = parseHttpFile(text);
+      assert.strictEqual(requests[0].body, '');
+      assert.strictEqual(requests[0].assertionLines.length, 1);
+    });
+
+    it('should handle multiple requests with assertions', () => {
+      const text = `### First
+GET https://example.com/one
+# @assert status == 200
+
+### Second
+POST https://example.com/two
+# @assert status == 201`;
+      const requests = parseHttpFile(text);
+      assert.strictEqual(requests.length, 2);
+      assert.strictEqual(requests[0].assertionLines.length, 1);
+      assert.strictEqual(requests[1].assertionLines.length, 1);
+    });
+
+    it('should have empty assertionLines when no assertions', () => {
+      const text = 'GET https://example.com/api';
+      const requests = parseHttpFile(text);
+      assert.strictEqual(requests[0].assertionLines.length, 0);
+    });
+
   describe('resolveVariables', () => {
     it('should replace {{var}} with values', () => {
       const result = resolveVariables('Hello {{name}}', { name: 'World' }, {});

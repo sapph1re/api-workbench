@@ -1,0 +1,49 @@
+@host = https://httpbin.org
+
+### Get Request
+GET {{host}}/get
+
+# @assert status == 200
+# @assert header content-type contains application/json
+# @assert jsonpath $.url == "https://httpbin.org/get"
+# @assert duration < 30000
+
+### Post JSON Data
+POST {{host}}/post
+Content-Type: application/json
+
+{
+  "name": "API Workbench",
+  "version": "0.1.0"
+}
+
+# @assert status == 200
+# @assert body contains "API Workbench"
+# @assert jsonpath $.json.name == "API Workbench"
+# @assert jsonpath $.json.version == "0.1.0"
+
+### Check Headers
+GET {{host}}/headers
+Accept: application/json
+X-Test-Header: workbench-test
+
+# @assert status == 200
+# @assert jsonpath $.headers.X-Test-Header == "workbench-test"
+
+### Status 201 Test
+GET {{host}}/status/201
+
+# @assert status == 201
+# @assert status != 200
+
+### 404 Error Test
+GET {{host}}/status/404
+
+# @assert status == 404
+# @assert body !contains "success"
+
+### Delayed Response
+GET {{host}}/delay/1
+
+# @assert status == 200
+# @assert duration >= 500
